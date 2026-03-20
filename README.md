@@ -224,7 +224,10 @@ Install with:
 ```bash
 pip install -r requirements.txt
 ```
-
+Or 
+```bash
+python -m pip install qrcode[pil] pillow
+```
 ---
 
 ## 🪟 Windows Users — Troubleshooting
