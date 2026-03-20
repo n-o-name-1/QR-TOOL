@@ -1,19 +1,4 @@
-"""
- ██████╗ ██████╗      ████████╗ ██████╗  ██████╗ ██╗
-██╔═══██╗██╔══██╗     ╚══██╔══╝██╔═══██╗██╔═══██╗██║
-██║   ██║██████╔╝        ██║   ██║   ██║██║   ██║██║
-██║▄▄ ██║██╔══██╗        ██║   ██║   ██║██║   ██║██║
-╚██████╔╝██║  ██║        ██║   ╚██████╔╝╚██████╔╝███████╗
- ╚══▀▀═╝ ╚═╝  ╚═╝        ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
-
-QR Code Generator & Reader  v1.0.0
-Author  : https://github.com/n-o-name-1
-Telegram : https://t.me/n_o_name_1
-License : MIT
-"""
-
 from __future__ import annotations
-
 import os
 import re
 import sys
@@ -22,7 +7,6 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
-
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import (
@@ -510,8 +494,7 @@ def screen_about() -> None:
 
   Output folder        : ./{OUTPUT_DIR}/
 
-  GitHub  : https://t.me/n_o_name_1/qr-tool
-  Telegram : https://t.me/n_o_name_1
+  GitHub  : https://github.com/n-o-name-1/qr-tool
   License : MIT
 """)
     input("  Press Enter to go back...")
@@ -534,8 +517,19 @@ def main() -> None:
     while True:
         clear_screen()
         print(f"""
-{HEAVY}
-  QR Tool  v{VERSION}  --  Generate & Read QR Codes
+               
+  ██████╗ ██████╗      ████████╗ ██████╗  ██████╗ ██╗
+██╔═══██╗██╔══██╗     ╚══██╔══╝██╔═══██╗██╔═══██╗██║
+██║   ██║██████╔╝        ██║   ██║   ██║██║   ██║██║
+██║▄▄ ██║██╔══██╗        ██║   ██║   ██║██║   ██║██║
+╚██████╔╝██║  ██║        ██║   ╚██████╔╝╚██████╔╝███████╗
+ ╚══▀▀═╝ ╚═╝  ╚═╝        ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
+
+QR Code Generator & Reader  v1.0.0
+Author  : https://github.com/n-o-name-1
+Telegram : https://t.me/n_o_name_1
+License : MIT
+
 {HEAVY}
 
     1.  Create QR Code
