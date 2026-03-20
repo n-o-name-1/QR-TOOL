@@ -162,7 +162,7 @@ qr-tool/
 
 ## 🧱 Architecture
 
-The code follows clean, professional Python practices:
+The code follows clean Python practices:
 
 | Concept | Usage |
 |---|---|
