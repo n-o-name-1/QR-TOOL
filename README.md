@@ -1,11 +1,12 @@
 # QR Tool 🔲
 
-> **QR code generator and reader built in Python.**  
+> **QR code generator and reader built in Python.**
 > Supports 9 data types, 3 styles, 6 color presets, and optional logo embedding.
 
 [![Python](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://python.org)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey)]()
+[![Version](https://img.shields.io/badge/Version-1.1.0-orange)]()
 
 ---
 
@@ -16,7 +17,7 @@
 | **Data types** | Text, Number, URL, Email, Phone, SMS, WiFi, vCard, Geo |
 | **Styles** | Square, Rounded, Circle |
 | **Colors** | 6 color presets (Black, Blue, Red, Green, Purple, White-on-Black) |
-| **Logo embed** | Paste your logo/icon at the center of any QR code |
+| **Logo embed** | Logo is centered with a solid background — QR auto-scales to fit |
 | **QR Reader** | Decode QR images via `pyzbar` or `opencv-python` |
 | **Output** | PNG images saved to `./qr_output/` |
 
@@ -46,7 +47,7 @@ git clone https://github.com/n-o-name-1/qr-tool.git
 cd qr-tool
 
 # 2. Install dependencies
-pip install qrcode[pil] pillow
+pip install -r requirements.txt
 
 # 3. (Optional) Install QR reader
 pip install pyzbar
@@ -63,7 +64,6 @@ python qr_tool.py
 You will see an interactive menu:
 
 ```
-
  ██████╗ ██████╗      ████████╗ ██████╗  ██████╗ ██╗
 ██╔═══██╗██╔══██╗     ╚══██╔══╝██╔═══██╗██╔═══██╗██║
 ██║   ██║██████╔╝        ██║   ██║   ██║██║   ██║██║
@@ -71,11 +71,12 @@ You will see an interactive menu:
 ╚██████╔╝██║  ██║        ██║   ╚██████╔╝╚██████╔╝███████╗
  ╚══▀▀═╝ ╚═╝  ╚═╝        ╚═╝    ╚═════╝  ╚═════╝ ╚══════╝
 
-QR Code Generator & Reader  v1.0.0
-Author  : https://github.com/n-o-name-1
+QR Code Generator & Reader  v1.1.0
+Author   : https://github.com/n-o-name-1
 Telegram : https://t.me/n_o_name_1
-License : MIT
- ──────────────────────────────────────────────────
+License  : MIT
+
+════════════════════════════════════════════════════
 
     1.  Create QR Code
     2.  Read   QR Code
@@ -95,10 +96,14 @@ Step 2 → Fill in fields    (SSID, password, etc.)
 Step 3 → Choose QR style   (Square / Rounded / Circle)
 Step 4 → Choose color      (6 presets)
 Step 5 → Set filename      (or keep default)
-Step 6 → Add logo          (optional — path to .png)
+Step 6 → Add logo          (optional — path to any image file)
 ```
 
 Output is saved to `./qr_output/<filename>.png`.
+
+> **Logo note:** When a logo is provided, the tool reads its dimensions first
+> and automatically scales up the QR image so the logo always appears at a
+> clear, consistent size — no manual resizing needed.
 
 ---
 
@@ -145,7 +150,7 @@ Security options: WPA/WPA2 | WEP | Open (no password)
 ```
 
 ### 8. vCard (Contact)
-Encodes a vCard 3.0 contact card.  
+Encodes a vCard 3.0 contact card.
 Scanning saves the contact directly to the phone.
 
 ```
@@ -153,14 +158,13 @@ Fields: Name, Phone, Email, Organization, Website, Address
 ```
 
 ### 9. Geo Location
-Encodes GPS coordinates as a `geo:` URI.  
+Encodes GPS coordinates as a `geo:` URI.
 Scanning opens the maps app at that location.
 
 ---
 
 ## 🧱 Architecture
 
-The code follows clean Python practices:
 
 | Concept | Usage |
 |---|---|
@@ -171,6 +175,7 @@ The code follows clean Python practices:
 | Strategy pattern | `QRReader` tries `pyzbar` then falls back to OpenCV |
 | Registry pattern | `DATA_TYPES` list maps each type to its collector function |
 | `pathlib.Path` | All file paths use `Path` — cross-platform, safe |
+| Dry-run probe | `build()` pre-calculates module count to derive the correct `box_size` |
 
 ---
 
@@ -179,19 +184,19 @@ The code follows clean Python practices:
 ```python
 from qr_tool import QRGenerator, QRConfig, QRStyle, QRColor
 from qr_tool import build_wifi, build_vcard, build_url
+from pathlib import Path
 
 # WiFi QR with rounded style
 cfg = QRConfig(
-    data      = build_wifi(ssid="HomeNet", password="s3cr3t"),
-    filename  = "wifi.png",
-    style     = QRStyle.ROUNDED,
-    color     = QRColor.BLUE,
+    data     = build_wifi(ssid="HomeNet", password="s3cr3t"),
+    filename = "wifi.png",
+    style    = QRStyle.ROUNDED,
+    color    = QRColor.BLUE,
 )
 path = QRGenerator.build(cfg)
 print(f"Saved to {path}")
 
-# vCard with logo
-from pathlib import Path
+# vCard with logo — QR auto-scales to fit the logo
 cfg = QRConfig(
     data      = build_vcard(name="Alice", phone="+1234567890"),
     filename  = "alice.png",
@@ -204,20 +209,36 @@ QRGenerator.build(cfg)
 
 ---
 
-## 📋 Requirements
+## 📋 Requirements File
 
-Install with:
-```bash
-pip install -r requirements.txt
+`requirements.txt`:
 ```
-Or 
-```bash
-python -m pip install qrcode[pil] pillow
+qrcode[pil]>=7.4
+Pillow>=10.0
 ```
 
 Optional reader:
 ```
 pyzbar>=0.1.9
+```
+
+Install:
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 🪟 Windows — Troubleshooting
+
+If `import qrcode` fails even after `pip install`:
+
+```bash
+# Use the exact Python that runs your script
+python -m pip install qrcode[pil] pillow
+
+# Verify
+python -c "import qrcode; print(qrcode.__version__)"
 ```
 
 ---
@@ -230,7 +251,7 @@ This project is licensed under the **MIT License** — free to use, modify, and 
 
 ## 🤝 Contributing
 
-Pull requests are welcome!  
+Pull requests are welcome!
 Please open an issue first to discuss major changes.
 
 ---
