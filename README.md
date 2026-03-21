@@ -75,8 +75,7 @@ QR Code Generator & Reader  v1.0.0
 Author  : https://github.com/n-o-name-1
 Telegram : https://t.me/n_o_name_1
 License : MIT
-
-{HEAVY}
+ ──────────────────────────────────────────────────
 
     1.  Create QR Code
     2.  Read   QR Code
@@ -217,7 +216,7 @@ QRGenerator.build(cfg)
 
 ---
 
-## 📋 Requirements File
+## 📋 Requirements
 
 Create `requirements.txt`:
 
