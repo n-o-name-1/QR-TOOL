@@ -158,18 +158,6 @@ Scanning opens the maps app at that location.
 
 ---
 
-## 📁 Project Structure
-
-```
-qr-tool/
-├── qr_tool.py       ← Main application (all-in-one)
-├── qr_output/       ← Generated QR images (auto-created)
-├── README.md
-└── LICENSE
-```
-
----
-
 ## 🧱 Architecture
 
 The code follows clean Python practices:
@@ -218,18 +206,6 @@ QRGenerator.build(cfg)
 
 ## 📋 Requirements
 
-Create `requirements.txt`:
-
-```
-qrcode[pil]>=7.4
-Pillow>=10.0
-```
-
-Optional reader:
-```
-pyzbar>=0.1.9
-```
-
 Install with:
 ```bash
 pip install -r requirements.txt
@@ -238,18 +214,10 @@ Or
 ```bash
 python -m pip install qrcode[pil] pillow
 ```
----
 
-## 🪟 Windows Users — Troubleshooting
-
-If `import qrcode` fails even after `pip install`:
-
-```bash
-# Use the exact Python that runs your script
-python -m pip install qrcode[pil] pillow
-
-# Verify installation
-python -c "import qrcode; print(qrcode.__version__)"
+Optional reader:
+```
+pyzbar>=0.1.9
 ```
 
 ---
