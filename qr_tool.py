@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional
+import math
 import qrcode
 from qrcode.image.styledpil import StyledPilImage
 from qrcode.image.styles.moduledrawers import (
@@ -93,21 +94,56 @@ class QRConfig:
 # ─────────────────────────────────────────────────────────
 
 class QRGenerator:
-    """Handles QR code image creation, styling, and logo embedding."""
-
     _DRAWER_MAP: dict[QRStyle, type] = {
         QRStyle.SQUARE  : SquareModuleDrawer,
         QRStyle.ROUNDED : RoundedModuleDrawer,
         QRStyle.CIRCLE  : CircleModuleDrawer,
     }
 
+    # Logo display constants
+    _LOGO_MAX_PX    : int   = 200    # cap logo longest side at this many pixels
+    _LOGO_ZONE_RATIO: float = 0.28   # logo zone <= 28 % of QR width (H = 30 % tolerance)
+    _LOGO_PADDING   : int   = 12     # solid bg padding around logo (px)
+
     @classmethod
     def build(cls, cfg: QRConfig) -> Path:
-        """Generate a QR image from *cfg* and write it to disk. Returns the path."""
-        qr = qrcode.QRCode(
+        # ── Step 1: dry-run to learn module count ────────────────────────────
+        qr_probe = qrcode.QRCode(
             version          = 1,
             error_correction = qrcode.constants.ERROR_CORRECT_H,
-            box_size         = cfg.box_size,
+            box_size         = 1,           # size irrelevant for probe
+            border           = cfg.border,
+        )
+        qr_probe.add_data(cfg.data)
+        qr_probe.make(fit=True)
+
+        # Total modules across one axis (data + 2 × border)
+        modules = qr_probe.modules_count + cfg.border * 2
+
+        # ── Step 2: compute box_size ──────────────────────────────────────────
+        box_size = cfg.box_size   # default (no logo)
+
+        if cfg.logo_path and cfg.logo_path.exists():
+            with Image.open(cfg.logo_path) as raw_logo:
+                lw, lh = raw_logo.size
+
+            # Cap logo at _LOGO_MAX_PX on its longest side
+            scale    = min(1.0, cls._LOGO_MAX_PX / max(lw, lh))
+            logo_w   = int(lw * scale)
+            logo_h   = int(lh * scale)
+
+            # Zone = logo + padding on every side
+            zone_px  = max(logo_w, logo_h) + cls._LOGO_PADDING * 2
+
+            # QR must be wide enough so zone / qr_width <= _LOGO_ZONE_RATIO
+            min_qr_px = zone_px / cls._LOGO_ZONE_RATIO
+            box_size  = max(cfg.box_size, math.ceil(min_qr_px / modules))
+
+        # ── Step 3: render at final box_size ─────────────────────────────────
+        qr = qrcode.QRCode(
+            version          = qr_probe.version,
+            error_correction = qrcode.constants.ERROR_CORRECT_H,
+            box_size         = box_size,
             border           = cfg.border,
         )
         qr.add_data(cfg.data)
@@ -116,37 +152,88 @@ class QRGenerator:
         img = cls._render(qr, cfg)
 
         if cfg.logo_path and cfg.logo_path.exists():
-            img = cls._embed_logo(img, cfg.logo_path)
+            img = cls._embed_logo(
+                img,
+                cfg.logo_path,
+                back_color = cfg.color.back,
+                max_px     = cls._LOGO_MAX_PX,
+                padding    = cls._LOGO_PADDING,
+            )
 
-        img.convert("RGB").save(cfg.output_path)
+        img.save(cfg.output_path)
         return cfg.output_path
 
     # --------------------------------------------------
 
     @classmethod
     def _render(cls, qr: qrcode.QRCode, cfg: QRConfig) -> Image.Image:
-        """Render the QR matrix into a styled PIL image."""
-        fill_rgb   = ImageColor.getrgb(cfg.color.fill)
-        back_rgb   = ImageColor.getrgb(cfg.color.back)
-        drawer     = cls._DRAWER_MAP[cfg.style]()
-        color_mask = SolidFillColorMask(front_color=fill_rgb, back_color=back_rgb)
+        from PIL import ImageOps
 
+        fill_rgb = ImageColor.getrgb(cfg.color.fill)
+        back_rgb = ImageColor.getrgb(cfg.color.back)
+        WHITE    = (255, 255, 255)
+        BLACK    = (0,   0,   0  )
+
+        if fill_rgb == WHITE and back_rgb == BLACK:
+            color_mask = SolidFillColorMask(front_color=BLACK, back_color=WHITE)
+            img = qr.make_image(
+                image_factory = StyledPilImage,
+                module_drawer = cls._DRAWER_MAP[cfg.style](),
+                color_mask    = color_mask,
+            ).convert("RGB")
+            return ImageOps.invert(img)
+
+        color_mask = SolidFillColorMask(front_color=fill_rgb, back_color=back_rgb)
         return qr.make_image(
             image_factory = StyledPilImage,
-            module_drawer = drawer,
+            module_drawer = cls._DRAWER_MAP[cfg.style](),
             color_mask    = color_mask,
-        ).convert("RGBA")
+        ).convert("RGB")
 
     @staticmethod
-    def _embed_logo(qr_img: Image.Image, logo_path: Path) -> Image.Image:
-        """Paste a logo (max 25 % of QR width) at the center of the QR image."""
-        logo = Image.open(logo_path).convert("RGBA")
-        logo.thumbnail((qr_img.width // 4, qr_img.height // 4))
-        pos = (
-            (qr_img.width  - logo.width)  // 2,
-            (qr_img.height - logo.height) // 2,
-        )
-        qr_img.paste(logo, pos, mask=logo)
+    def _embed_logo(
+        qr_img    : Image.Image,
+        logo_path : Path,
+        back_color: str = "white",
+        max_px    : int = 200,
+        padding   : int = 12,
+    ) -> Image.Image:
+        """
+        Paste a logo at the center of the QR image inside a solid-color box.
+
+        The QR has already been scaled in build() to fit the logo correctly,
+        so here we only apply the max_px cap (same value used in build()),
+        add padding, and composite onto the QR center.
+
+        Layout:
+            ┌──────────────────────┐
+            │   solid bg (padding) │  <- back_color of QR
+            │   ┌──────────────┐   │
+            │   │     logo     │   │
+            │   └──────────────┘   │
+            └──────────────────────┘
+        """
+        logo  = Image.open(logo_path).convert("RGBA")
+
+        # Apply the same cap used in build() so sizes stay consistent
+        scale = min(1.0, max_px / max(logo.width, logo.height))
+        new_w = int(logo.width  * scale)
+        new_h = int(logo.height * scale)
+        if scale < 1.0:
+            logo = logo.resize((new_w, new_h), Image.LANCZOS)
+
+        # Solid-color background block
+        bg_w    = logo.width  + padding * 2
+        bg_h    = logo.height + padding * 2
+        bg      = Image.new("RGBA", (bg_w, bg_h), back_color + "FF"
+                            if len(back_color) == 7 else back_color)
+        bg.paste(logo, (padding, padding), mask=logo)
+
+        # Center on QR
+        cx = (qr_img.width  - bg_w) // 2
+        cy = (qr_img.height - bg_h) // 2
+        qr_img.paste(bg.convert("RGB"), (cx, cy))
+
         return qr_img
 
 
@@ -155,15 +242,9 @@ class QRGenerator:
 # ─────────────────────────────────────────────────────────
 
 class QRReader:
-    """Decodes QR codes from image files using available libraries."""
 
     @staticmethod
     def read(image_path: Path) -> list[str]:
-        """
-        Decode all QR codes in *image_path*.
-        Returns a list of decoded UTF-8 strings.
-        Raises ImportError when no compatible library is available.
-        """
         img = Image.open(image_path)
 
         # Strategy 1 — pyzbar (preferred, supports multiple codes per image)
@@ -175,7 +256,7 @@ class QRReader:
 
         # Strategy 2 — OpenCV fallback
         try:
-            import cv2
+            import cv2 # type: ignore
             import numpy as np
             cv_img       = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
             detector     = cv2.QRCodeDetector()
@@ -273,7 +354,6 @@ def print_header(text: str) -> None:
 
 
 def prompt(label: str, required: bool = True) -> str:
-    """Prompt for input, re-asking until non-empty when *required* is True."""
     while True:
         val = input(f"  > {label}: ").strip()
         if val or not required:
@@ -286,7 +366,6 @@ def prompt_optional(label: str) -> str:
 
 
 def numbered_menu(options: list[str], header: str = "Choose an option") -> int:
-    """Show a numbered list and return the 1-based selection index."""
     print(f"\n  {header}\n")
     for i, opt in enumerate(options, 1):
         print(f"    {i:>2}.  {opt}")
@@ -387,7 +466,6 @@ DATA_TYPES: list[DataTypeEntry] = [
 # ─────────────────────────────────────────────────────────
 
 def screen_create() -> None:
-    """Full interactive flow to generate a QR code."""
     print_header("Create QR Code")
 
     # 1 — Pick data type
@@ -436,7 +514,7 @@ def screen_create() -> None:
     try:
         out = QRGenerator.build(cfg)
         print(f"\n{HEAVY}")
-        print(f"  [OK] Saved to: {out.resolve()}")
+        print(f"   Saved to: {out.resolve()}")
         print(HEAVY)
     except Exception as exc:
         log.exception("Generation failed")
@@ -444,9 +522,7 @@ def screen_create() -> None:
 
     input("\n  Press Enter to return to menu...")
 
-
 def screen_read() -> None:
-    """Interactive flow to decode a QR code image."""
     print_header("Read QR Code")
 
     path = Path(prompt("Image file path (e.g. qr_output/qr_url.png)"))
@@ -479,7 +555,6 @@ def screen_read() -> None:
 
     input("  Press Enter to return to menu...")
 
-
 def screen_about() -> None:
     print_header(f"QR Tool  v{VERSION}")
     print(f"""
@@ -499,7 +574,6 @@ def screen_about() -> None:
 """)
     input("  Press Enter to go back...")
 
-
 # ─────────────────────────────────────────────────────────
 #  Main Loop
 # ─────────────────────────────────────────────────────────
@@ -512,13 +586,12 @@ MAIN_ACTIONS: dict[int, Callable[[], None]] = {
     4: lambda: sys.exit(0),
 }
 
-
 def main() -> None:
     while True:
         clear_screen()
         print(f"""
                
- ██████╗ ██████╗      ████████╗ ██████╗  ██████╗ ██╗
+  ██████╗ ██████╗     ████████╗ ██████╗  ██████╗ ██╗
 ██╔═══██╗██╔══██╗     ╚══██╔══╝██╔═══██╗██╔═══██╗██║
 ██║   ██║██████╔╝        ██║   ██║   ██║██║   ██║██║
 ██║▄▄ ██║██╔══██╗        ██║   ██║   ██║██║   ██║██║
